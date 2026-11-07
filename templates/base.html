@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Anime Archive{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  {% block head %}{% endblock %}
+</head>
+
+<body class="theme-night">
+
+  <nav class="main-nav">
+    <a href="{{ url_for('index') }}" class="brand">Anime Archive</a>
+    <div class="links">
+      <a href="{{ url_for('index') }}">Главная</a>
+      <a href="{{ url_for('app_page') }}">Архив</a>
+      <a href="{{ url_for('progress') }}">Прогресс</a>
+    </div>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

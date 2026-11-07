@@ -1,0 +1,877 @@
+{% extends "base.html" %}
+
+{% block title %}Anime Archive — Архив{% endblock %}
+
+{% block content %}
+<div class="app">
+
+  <header>
+    <div>
+      <h1>Anime Archive</h1>
+      <div class="sub">кинолента · <span id="total">0</span> тайтлов</div>
+    </div>
+    <div class="search">
+      <input id="search" type="text" placeholder="поиск по названию…" />
+    </div>
+    <div class="theme-switcher" id="themeSwitcher">
+      <button data-theme="night"  title="Ночь"></button>
+      <button data-theme="sakura" title="Сакура"></button>
+      <button data-theme="ocean"  title="Океан"></button>
+      <button data-theme="forest" title="Лес"></button>
+    </div>
+  </header>
+
+  <div class="welcome" id="welcome">
+    <div class="welcome-head">
+      <div class="welcome-title">
+        Привет. Это мой архив просмотренных тайтлов. <span class="accent">Добро пожаловать!</span>
+      </div>
+      <button class="welcome-toggle" id="welcomeToggle">Свернуть</button>
+    </div>
+    <div class="welcome-body">
+      Мини-инструкция для тебя:
+      <ol>
+        <li>Ты можешь добавить в свой виш-лист тайтлы, которые хочешь посмотреть/пересмотреть.</li>
+        <li>Ты можешь оставить заметки к нужному тайтлу.</li>
+        <li>Ты можешь добавить рекомендуемое аниме, которое тебе понравилось, а в списке его нет.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="recommend">
+    <div class="recommend-head">
+      <div class="recommend-title"><span class="plus">+</span>Добавить рекомендацию</div>
+      <div class="recommend-tools">
+        <button id="exportRecTxt" title="Скачать список рекомендаций в TXT">Экспорт TXT</button>
+        <button id="exportRecJson" title="Скачать рекомендации в JSON">Экспорт JSON</button>
+        <button class="import" id="importRecJson" title="Импорт рекомендаций из JSON">Импорт JSON</button>
+        <input type="file" id="importRecFile" accept=".json,application/json" hidden />
+      </div>
+    </div>
+    <form class="recommend-form" id="recommendForm" autocomplete="off">
+      <input id="recTitle"  type="text" placeholder="Название*" required />
+      <input id="recYear"   type="text" placeholder="Год (напр. 2024)" />
+      <input id="recCountry" type="text" placeholder="Страна" />
+      <input id="recGenres" type="text" placeholder="Жанры через запятую" />
+      <button type="submit">Добавить</button>
+    </form>
+    <div class="recommend-msg" id="recommendMsg"></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="decades" id="decades"></div>
+    <div class="modes" id="modes">
+      <button data-mode="all" class="active">Все<span class="badge" id="badgeAll"></span></button>
+      <button data-mode="wishlist">★ Виш-лист<span class="badge" id="badgeWish"></span></button>
+      <button data-mode="notes">✎ Заметки<span class="badge" id="badgeNotes"></span></button>
+    </div>
+    <div class="sort" id="sort">
+      <button data-sort="year-desc" class="active">Год ↓</button>
+      <button data-sort="year-asc">Год ↑</button>
+      <button data-sort="alpha">А–Я</button>
+    </div>
+    <div class="sort sort-wish" id="sortWish">
+      <button data-sort="added-desc" class="active">Добавлено ↓</button>
+      <button data-sort="added-asc">Добавлено ↑</button>
+    </div>
+  </div>
+
+  <div id="shownCounter" style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;letter-spacing:.05em"></div>
+
+  <div class="alphabet" id="alphabet"></div>
+  <select class="alphabet-select" id="alphabetSelect"></select>
+
+  <div id="strips"></div>
+</div>
+
+<div class="backdrop" id="backdrop">
+  <div class="modal" id="modal">
+    <button class="close" id="close">×</button>
+    <h2 id="mTitle"></h2>
+    <div class="orig" id="mOrig"></div>
+    <div class="row-fact"><span>год</span><span id="mYear"></span></div>
+    <div class="row-fact"><span>страна</span><span id="mCountry"></span></div>
+    <div class="tags" id="mTags"></div>
+    <div class="downloads" id="downloads" style="display:none">
+      <button id="dlTxt">Скачать .txt <span class="ico">TXT</span></button>
+      <button id="dlJson">Скачать .json <span class="ico">{ }</span></button>
+      <button class="import-btn" id="importJson">Импорт .json <span class="ico">↑</span></button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden />
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="noteBackdrop">
+  <div class="modal">
+    <button class="close" id="noteClose">×</button>
+    <h2 id="noteTitle"></h2>
+    <textarea id="noteText" placeholder="что записать об этом аниме…"></textarea>
+    <div class="note-actions">
+      <button class="danger" id="noteDelete">Удалить</button>
+      <button class="primary" id="noteSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  /* =============================================================
+     1. КЛЮЧИ
+     ============================================================= */
+  const FILTERS_KEY  = "animeArchive.filters.v2";
+  const WISHLIST_KEY = "animeArchive.wishlist.v2";
+  const NOTES_KEY    = "animeArchive.notes.v1";
+  const CUSTOM_KEY   = "animeArchive.custom.v1";
+  const WELCOME_KEY  = "animeArchive.welcomeCollapsed.v1";
+  const THEME_KEY    = "animeArchive.theme.v1";
+
+  /* ================= ТЕМЫ ================= */
+  function applyTheme(name) {
+    ["theme-night","theme-sakura","theme-ocean","theme-forest"].forEach(c => {
+      document.body.classList.remove(c);
+    });
+    document.body.classList.add("theme-" + name);
+    document.querySelectorAll("#themeSwitcher button").forEach(b => {
+      b.classList.toggle("active", b.dataset.theme === name);
+    });
+    localStorage.setItem(THEME_KEY, name);
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem(THEME_KEY) || "night";
+    applyTheme(saved);
+    document.querySelectorAll("#themeSwitcher button").forEach(btn => {
+      btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
+    });
+  }
+
+  /* --- Миграция виш-листа --- */
+  (function migrateWishlist() {
+    const oldKey = "animeArchive.wishlist.v1";
+    const oldRaw = localStorage.getItem(oldKey);
+    const newRaw = localStorage.getItem(WISHLIST_KEY);
+    if (!newRaw && oldRaw) {
+      try {
+        const old = JSON.parse(oldRaw);
+        if (Array.isArray(old) && old.every(x => typeof x === "number")) {
+          const now = Date.now();
+          const migrated = old.map((id, i) => ({
+            id, addedAt: new Date(now - (old.length - i) * 1000).toISOString()
+          }));
+          localStorage.setItem(WISHLIST_KEY, JSON.stringify(migrated));
+          localStorage.removeItem(oldKey);
+        }
+      } catch (e) { console.warn("migrate:", e); }
+    }
+  })();
+
+  /* =============================================================
+     2. ДАННЫЕ
+     ============================================================= */
+  let wishlist    = JSON.parse(localStorage.getItem(WISHLIST_KEY) || "[]");
+  let notes       = JSON.parse(localStorage.getItem(NOTES_KEY)    || "{}");
+  let customItems = JSON.parse(localStorage.getItem(CUSTOM_KEY)   || "[]");
+
+  function nextCustomId() {
+    if (!customItems.length) return -1;
+    return Math.min(...customItems.map(x => x.id)) - 1;
+  }
+
+  function saveCustom()   { localStorage.setItem(CUSTOM_KEY,   JSON.stringify(customItems)); }
+  function saveWishlist() { localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));    }
+  function saveNotes()    { localStorage.setItem(NOTES_KEY,    JSON.stringify(notes));       }
+
+  /* =============================================================
+     3. СОСТОЯНИЕ
+     ============================================================= */
+  const state = {
+    items: [], decade: null, letter: null, q: "",
+    sort: "year-desc", wishSort: "added-desc", mode: "all"
+  };
+  const $ = (s) => document.querySelector(s);
+
+  /* =============================================================
+     4. УТИЛИТЫ
+     ============================================================= */
+  const yearOf = (it) => {
+    if (typeof it.yearNum === "number") return it.yearNum;
+    const m = String(it.year || "").match(/\d{4}/);
+    return m ? parseInt(m[0], 10) : null;
+  };
+  const decadeOf = (it) => {
+    const y = yearOf(it);
+    return y == null ? null : Math.floor(y / 10) * 10;
+  };
+  const firstLetter = (it) => (it.titleRu || "").trim().charAt(0).toUpperCase();
+  const findWish = (id) => wishlist.find(w => w.id === id);
+  const inWishlist = (it) => Boolean(findWish(it.id));
+  const wishAddedAt = (id) => {
+    const w = findWish(id);
+    return w ? new Date(w.addedAt).getTime() : 0;
+  };
+  const getNote = (it) => notes[it.id] || "";
+  const hasNote = (it) => Boolean(getNote(it).trim());
+  const isCustom = (it) => it.id < 0;
+
+  /* =============================================================
+     5. ТОСТЫ
+     ============================================================= */
+  function toast(message, kind = "ok", ms = 3000) {
+    const box = document.createElement("div");
+    box.className = "toast " + kind;
+    box.textContent = message;
+    $("#toasts").appendChild(box);
+    setTimeout(() => {
+      box.style.opacity = "0";
+      box.style.transition = "opacity .25s";
+      setTimeout(() => box.remove(), 250);
+    }, ms);
+  }
+
+  /* =============================================================
+     6. ФИЛЬТРЫ
+     ============================================================= */
+  function persistFilters() {
+    localStorage.setItem(FILTERS_KEY, JSON.stringify({
+      decade: state.decade, letter: state.letter, q: state.q,
+      sort: state.sort, wishSort: state.wishSort
+    }));
+  }
+  function restoreFilters() {
+    try {
+      const raw = localStorage.getItem(FILTERS_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (p.decade !== undefined) state.decade = p.decade;
+      if (p.letter !== undefined) state.letter = p.letter;
+      if (typeof p.q === "string") state.q = p.q;
+      if (p.sort) state.sort = p.sort;
+      if (p.wishSort) state.wishSort = p.wishSort;
+    } catch (e) { console.warn("restoreFilters:", e); }
+  }
+
+  /* =============================================================
+     7. ИНИЦИАЛИЗАЦИЯ
+     ============================================================= */
+  async function init() {
+    initTheme();
+    const res = await fetch("/api/catalog");
+    const catalog = await res.json();
+    state.items = [...catalog, ...customItems];
+    $("#total").textContent = state.items.length;
+
+    restoreFilters();
+    initWelcome();
+    buildDecades();
+    buildAlphabet();
+    buildAlphabetSelect();
+    syncAllControls();
+    updateExportButtons();
+    render();
+  }
+
+  /* =============================================================
+     8. ПРИВЕТСТВИЕ
+     ============================================================= */
+  function initWelcome() {
+    const collapsed = localStorage.getItem(WELCOME_KEY) === "1";
+    applyWelcomeState(collapsed);
+  }
+  function applyWelcomeState(collapsed) {
+    $("#welcome").classList.toggle("collapsed", collapsed);
+    $("#welcomeToggle").textContent = collapsed ? "Показать инструкцию" : "Свернуть";
+  }
+  $("#welcomeToggle").addEventListener("click", () => {
+    const el = $("#welcome");
+    const nowCollapsed = !el.classList.contains("collapsed");
+    applyWelcomeState(nowCollapsed);
+    localStorage.setItem(WELCOME_KEY, nowCollapsed ? "1" : "0");
+  });
+
+  /* =============================================================
+     9. ДОБАВЛЕНИЕ РЕКОМЕНДАЦИИ
+     ============================================================= */
+  $("#recommendForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const title   = $("#recTitle").value.trim();
+    const year    = $("#recYear").value.trim();
+    const country = $("#recCountry").value.trim();
+    const genresRaw = $("#recGenres").value.trim();
+    const msg = $("#recommendMsg");
+    msg.classList.remove("err");
+
+    if (!title) { msg.textContent = "Укажите название."; msg.classList.add("err"); return; }
+    if (year && !/\d{4}/.test(year)) { msg.textContent = "Год должен содержать четыре цифры."; msg.classList.add("err"); return; }
+    if (state.items.some(it => it.titleRu.toLowerCase() === title.toLowerCase())) {
+      msg.textContent = "Такое название уже есть в архиве."; msg.classList.add("err"); return;
+    }
+
+    const item = {
+      id: nextCustomId(),
+      titleRu: title,
+      year: year || null,
+      country: country || null,
+      genres: genresRaw ? genresRaw.split(",").map(g => g.trim()).filter(Boolean) : [],
+      poster: "",
+      custom: true
+    };
+    customItems.push(item);
+    saveCustom();
+    state.items = [...state.items.filter(x => !isCustom(x)), ...customItems];
+
+    $("#recommendForm").reset();
+    msg.textContent = `«${title}» добавлено в рекомендации.`;
+
+    buildDecades(); buildAlphabet(); buildAlphabetSelect();
+    syncDecadeUI(); syncLetterUI(); syncAlphabetSelect();
+    $("#total").textContent = state.items.length;
+    updateExportButtons();
+    render();
+  });
+
+  /* =============================================================
+     10. УДАЛЕНИЕ РЕКОМЕНДАЦИИ
+     ============================================================= */
+  function deleteCustom(it) {
+    if (!isCustom(it)) return;
+    if (!confirm(`Удалить рекомендацию «${it.titleRu}» из архива?`)) return;
+    customItems = customItems.filter(x => x.id !== it.id);
+    saveCustom();
+    wishlist = wishlist.filter(w => w.id !== it.id); saveWishlist();
+    delete notes[it.id]; saveNotes();
+    state.items = [...state.items.filter(x => x.id !== it.id)];
+    $("#total").textContent = state.items.length;
+    buildDecades(); buildAlphabet(); buildAlphabetSelect();
+    syncDecadeUI(); syncLetterUI(); syncAlphabetSelect();
+    updateExportButtons();
+    render();
+  }
+
+  /* =============================================================
+     11. ВИШ-ЛИСТ
+     ============================================================= */
+  function toggleWishlist(it) {
+    if (inWishlist(it)) wishlist = wishlist.filter(w => w.id !== it.id);
+    else wishlist.push({ id: it.id, addedAt: new Date().toISOString() });
+    saveWishlist();
+    render();
+  }
+
+  /* =============================================================
+     12. ЗАМЕТКИ
+     ============================================================= */
+  let noteCurrentId = null;
+  function openNoteModal(it) {
+    noteCurrentId = it.id;
+    $("#noteTitle").textContent = it.titleRu;
+    $("#noteText").value = getNote(it);
+    $("#noteBackdrop").classList.add("open");
+    setTimeout(() => $("#noteText").focus(), 50);
+  }
+  function saveNote() {
+    if (noteCurrentId == null) return;
+    const val = $("#noteText").value.trim();
+    if (val) notes[noteCurrentId] = val; else delete notes[noteCurrentId];
+    saveNotes();
+    $("#noteBackdrop").classList.remove("open");
+    render();
+  }
+  function deleteNote() {
+    if (noteCurrentId == null) return;
+    if (!confirm(`Удалить заметку к «${$("#noteTitle").textContent}»?`)) return;
+    delete notes[noteCurrentId];
+    saveNotes();
+    $("#noteBackdrop").classList.remove("open");
+    render();
+  }
+  $("#noteSave").onclick = saveNote;
+  $("#noteDelete").onclick = deleteNote;
+  $("#noteClose").onclick = () => $("#noteBackdrop").classList.remove("open");
+  $("#noteBackdrop").onclick = (e) => { if (e.target.id === "noteBackdrop") $("#noteBackdrop").classList.remove("open"); };
+
+  /* =============================================================
+     13. РЕЖИМЫ
+     ============================================================= */
+  document.querySelectorAll("#modes button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.mode = btn.dataset.mode;
+      syncModeUI(); render();
+    });
+  });
+  function syncModeUI() {
+    document.querySelectorAll("#modes button").forEach(b => {
+      b.classList.toggle("active", b.dataset.mode === state.mode);
+    });
+    $("#sortWish").classList.toggle("visible", state.mode === "wishlist");
+  }
+  function updateModeBadges() {
+    $("#badgeAll").textContent   = state.items.length;
+    $("#badgeWish").textContent  = wishlist.length;
+    $("#badgeNotes").textContent = Object.keys(notes).length;
+  }
+
+  /* =============================================================
+     14. ДЕСЯТИЛЕТИЯ
+     ============================================================= */
+  function buildDecades() {
+    const set = new Set(state.items.map(decadeOf).filter(x => x != null));
+    const decades = [...set].sort((a, b) => b - a);
+    const hasNoYear = state.items.some(it => yearOf(it) == null);
+    const el = $("#decades");
+    el.innerHTML = "";
+    const all = document.createElement("button");
+    all.textContent = "Все"; all.dataset.dec = "all";
+    all.onclick = () => { state.decade = null; persistFilters(); syncDecadeUI(); render(); };
+    el.appendChild(all);
+    for (const d of decades) {
+      const b = document.createElement("button");
+      b.textContent = `${d}-е`; b.dataset.dec = d;
+      b.onclick = () => { state.decade = d; persistFilters(); syncDecadeUI(); render(); };
+      el.appendChild(b);
+    }
+    if (hasNoYear) {
+      const b = document.createElement("button");
+      b.textContent = "Год не указан"; b.dataset.dec = "none";
+      b.onclick = () => { state.decade = "none"; persistFilters(); syncDecadeUI(); render(); };
+      el.appendChild(b);
+    }
+  }
+  function syncDecadeUI() {
+    document.querySelectorAll("#decades button").forEach(b => {
+      const v = b.dataset.dec;
+      let active;
+      if (v === "all") active = state.decade == null;
+      else if (v === "none") active = state.decade === "none";
+      else active = Number(v) === state.decade;
+      b.classList.toggle("active", active);
+    });
+  }
+
+  /* =============================================================
+     15. АЛФАВИТ
+     ============================================================= */
+  function collectLetters() {
+    return [...new Set(
+      state.items.map(firstLetter).filter(ch => /[А-ЯЁA-Z]/.test(ch))
+    )].sort((a, b) => a.localeCompare(b, "ru"));
+  }
+  function buildAlphabet() {
+    const el = $("#alphabet");
+    el.innerHTML = "";
+    const all = document.createElement("button");
+    all.textContent = "·"; all.title = "все";
+    all.onclick = () => { state.letter = null; persistFilters(); syncLetterUI(); syncAlphabetSelect(); render(); };
+    el.appendChild(all);
+    for (const L of collectLetters()) {
+      const b = document.createElement("button");
+      b.textContent = L; b.dataset.letter = L;
+      b.onclick = () => { state.letter = L; persistFilters(); syncLetterUI(); syncAlphabetSelect(); render(); };
+      el.appendChild(b);
+    }
+  }
+  function buildAlphabetSelect() {
+    const sel = $("#alphabetSelect");
+    sel.innerHTML = `<option value="">Все буквы</option>`;
+    for (const L of collectLetters()) {
+      const opt = document.createElement("option");
+      opt.value = L; opt.textContent = L;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", (e) => {
+      state.letter = e.target.value || null;
+      persistFilters(); syncLetterUI(); syncAlphabetSelect(); render();
+    });
+  }
+  function syncAlphabetSelect() { $("#alphabetSelect").value = state.letter || ""; }
+  function syncLetterUI() {
+    document.querySelectorAll("#alphabet button").forEach(b => {
+      const L = b.dataset.letter;
+      b.classList.toggle("active", L ? L === state.letter : state.letter == null);
+    });
+  }
+
+  /* =============================================================
+     16. СОРТИРОВКА
+     ============================================================= */
+  document.querySelectorAll("#sort button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.sort = btn.dataset.sort;
+      persistFilters(); syncSortUI(); render();
+    });
+  });
+  document.querySelectorAll("#sortWish button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.wishSort = btn.dataset.sort;
+      persistFilters(); syncSortUI(); render();
+    });
+  });
+  function syncSortUI() {
+    document.querySelectorAll("#sort button").forEach(b => {
+      b.classList.toggle("active", b.dataset.sort === state.sort);
+    });
+    document.querySelectorAll("#sortWish button").forEach(b => {
+      b.classList.toggle("active", b.dataset.sort === state.wishSort);
+    });
+  }
+  function sortItems(list) {
+    const arr = [...list];
+    if (state.mode === "wishlist") {
+      arr.sort((a, b) => {
+        const ta = wishAddedAt(a.id), tb = wishAddedAt(b.id);
+        return state.wishSort === "added-asc" ? ta - tb : tb - ta;
+      });
+      return arr;
+    }
+    if (state.sort === "alpha") {
+      arr.sort((a, b) => a.titleRu.localeCompare(b.titleRu, "ru"));
+    } else if (state.sort === "year-asc") {
+      arr.sort((a, b) => {
+        const ya = yearOf(a), yb = yearOf(b);
+        if (ya == null && yb == null) return a.titleRu.localeCompare(b.titleRu, "ru");
+        if (ya == null) return 1; if (yb == null) return -1;
+        return ya - yb || a.titleRu.localeCompare(b.titleRu, "ru");
+      });
+    } else {
+      arr.sort((a, b) => {
+        const ya = yearOf(a), yb = yearOf(b);
+        if (ya == null && yb == null) return a.titleRu.localeCompare(b.titleRu, "ru");
+        if (ya == null) return 1; if (yb == null) return -1;
+        return yb - ya || a.titleRu.localeCompare(b.titleRu, "ru");
+      });
+    }
+    return arr;
+  }
+
+  /* =============================================================
+     17. ФИЛЬТРАЦИЯ
+     ============================================================= */
+  function filtered() {
+    const q = state.q.trim().toLowerCase();
+    return state.items.filter(it => {
+      if (state.mode === "wishlist" && !inWishlist(it)) return false;
+      if (state.mode === "notes"    && !hasNote(it))    return false;
+      if (state.decade === "none") {
+        if (yearOf(it) != null) return false;
+      } else if (state.decade != null) {
+        if (decadeOf(it) !== state.decade) return false;
+      }
+      if (state.letter && firstLetter(it) !== state.letter) return false;
+      if (q && !(it.titleRu || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+
+  /* =============================================================
+     18. РЕНДЕР
+     ============================================================= */
+  function render() {
+    const items = filtered();
+    const root = $("#strips");
+    root.innerHTML = "";
+    $("#shownCounter").textContent = `показано ${items.length} из ${state.items.length}`;
+    updateModeBadges();
+
+    if (!items.length) {
+      root.innerHTML = `<div class="empty"><b>ничего не найдено</b>попробуйте другой год, букву или режим</div>`;
+      return;
+    }
+
+    const map = new Map();
+    for (const it of items) {
+      const d = decadeOf(it);
+      const key = d == null ? "none" : d;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(it);
+    }
+
+    let groups = [...map.entries()];
+    if (state.mode === "wishlist" || state.sort !== "year-desc") {
+      groups.sort((a, b) => {
+        const va = a[0] === "none" ? Infinity : a[0];
+        const vb = b[0] === "none" ? Infinity : b[0];
+        return va - vb;
+      });
+    } else {
+      groups.sort((a, b) => {
+        const va = a[0] === "none" ? -Infinity : a[0];
+        const vb = b[0] === "none" ? -Infinity : b[0];
+        return vb - va;
+      });
+    }
+
+    for (const [key, list] of groups) {
+      const sorted = sortItems(list);
+      const title = key === "none" ? "Год не указан" : `${key}‑е`;
+      const strip = document.createElement("section");
+      strip.className = "strip";
+      strip.innerHTML = `
+        <div class="strip-head">
+          <div class="year">${title}</div>
+          <div class="count">${sorted.length} тайтлов</div>
+          <div class="rule"></div>
+        </div>
+        <div class="row"></div>
+      `;
+      const row = strip.querySelector(".row");
+
+      for (const it of sorted) {
+        const c = document.createElement("article");
+        c.className = "card" + (isCustom(it) ? " custom" : "");
+        const wish = inWishlist(it);
+        const noted = hasNote(it);
+        c.innerHTML = `
+          <div class="card-actions">
+            <button class="act wish ${wish ? "on" : ""}" title="${wish ? "Убрать из виш-листа" : "В виш-лист"}">${wish ? "★" : "☆"}</button>
+            <button class="act note ${noted ? "on" : ""}" title="${noted ? "Редактировать заметку" : "Добавить заметку"}">✎</button>
+            ${isCustom(it) ? `<button class="act del" title="Удалить рекомендацию">×</button>` : ""}
+          </div>
+          ${it.poster ? `<div class="poster" style="background-image:url('${it.poster}')"></div>` : ""}
+          <div class="name">${it.titleRu}</div>
+          <div class="tags">${(it.genres || []).slice(0, 2).map(g => `<span class="tag">${g}</span>`).join("")}</div>
+          ${noted ? `<div class="note-preview">${getNote(it)}</div>` : ""}
+          <div class="meta"><span>${it.year || "—"}</span><span class="dot">·</span><span>${it.country || "—"}</span></div>
+          <div class="letter">${firstLetter(it)}</div>
+          ${isCustom(it) ? `<div class="custom-badge">моя рекомендация</div>` : ""}
+        `;
+        c.querySelector(".wish").addEventListener("click", (e) => { e.stopPropagation(); toggleWishlist(it); });
+        c.querySelector(".note").addEventListener("click", (e) => { e.stopPropagation(); openNoteModal(it); });
+        if (isCustom(it)) {
+          c.querySelector(".del").addEventListener("click", (e) => { e.stopPropagation(); deleteCustom(it); });
+        }
+        c.addEventListener("click", () => openModal(it));
+        row.appendChild(c);
+      }
+      root.appendChild(strip);
+    }
+  }
+
+  /* =============================================================
+     19. МОДАЛКА ДЕТАЛЕЙ
+     ============================================================= */
+  function openModal(it) {
+    $("#mTitle").textContent = it.titleRu;
+    $("#mOrig").textContent = it.titleOriginal || "";
+    $("#mYear").textContent = it.year || "—";
+    $("#mCountry").textContent = it.country || "—";
+    $("#mTags").innerHTML = (it.genres || []).map(g => `<span class="tag">${g}</span>`).join("");
+    $("#downloads").style.display = state.mode === "wishlist" ? "flex" : "none";
+    $("#backdrop").classList.add("open");
+  }
+  $("#close").onclick = () => $("#backdrop").classList.remove("open");
+  $("#backdrop").onclick = (e) => { if (e.target.id === "backdrop") $("#backdrop").classList.remove("open"); };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      $("#backdrop").classList.remove("open");
+      $("#noteBackdrop").classList.remove("open");
+    }
+  });
+
+  /* =============================================================
+     20. СКАЧИВАНИЕ
+     ============================================================= */
+  function downloadFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  $("#dlTxt").onclick = () => {
+    const lines = wishlist
+      .map(w => state.items.find(x => x.id === w.id))
+      .filter(Boolean)
+      .map(x => x.titleRu);
+    downloadFile("wishlist.txt",
+      "Виш-лист Anime Archive\n======================\n" +
+      `Всего: ${lines.length}\n\n` + lines.join("\n"),
+      "text/plain;charset=utf-8");
+    toast("wishlist.txt сохранён");
+  };
+
+  $("#dlJson").onclick = () => {
+    const data = wishlist.map(w => {
+      const it = state.items.find(x => x.id === w.id);
+      if (!it) return null;
+      return { id: it.id, titleRu: it.titleRu, year: it.year || null, country: it.country || null, addedAt: w.addedAt };
+    }).filter(Boolean);
+    downloadFile("wishlist.json", JSON.stringify(data, null, 2), "application/json;charset=utf-8");
+    toast("wishlist.json сохранён");
+  };
+
+  /* =============================================================
+     21. ИМПОРТ ВИШ-ЛИСТА
+     ============================================================= */
+  $("#importJson").onclick = () => $("#importFile").click();
+
+  $("#importFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error("Ожидался массив объектов");
+
+      const valid = parsed.filter(x => x && typeof x.id === "number" && x.addedAt);
+      if (!valid.length) throw new Error("В файле нет подходящих записей (нужны id и addedAt)");
+
+      const inCatalog = valid.filter(x => state.items.some(it => it.id === x.id));
+      const skipped   = valid.length - inCatalog.length;
+
+      let added = 0;
+      for (const w of inCatalog) {
+        if (!wishlist.some(existing => existing.id === w.id)) {
+          wishlist.push({ id: w.id, addedAt: w.addedAt });
+          added++;
+        }
+      }
+      saveWishlist(); render();
+
+      const parts = [`Импорт виш-листа: добавлено ${added}`];
+      if (skipped) parts.push(`пропущено ${skipped} (нет в каталоге)`);
+      toast(parts.join(", "), added > 0 ? "ok" : "err");
+    } catch (err) {
+      console.error(err);
+      toast("Не удалось импортировать виш-лист: " + err.message, "err", 5000);
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  /* =============================================================
+     22. ЭКСПОРТ РЕКОМЕНДАЦИЙ
+     ============================================================= */
+  function updateExportButtons() {
+    const hasAny = customItems.length > 0;
+    $("#exportRecTxt").disabled  = !hasAny;
+    $("#exportRecJson").disabled = !hasAny;
+  }
+
+  $("#exportRecTxt").onclick = () => {
+    if (!customItems.length) return;
+    const lines = customItems.map((it, i) => {
+      const parts = [it.titleRu];
+      if (it.year) parts.push(it.year);
+      if (it.country) parts.push(it.country);
+      const meta = parts.slice(1).join(" · ");
+      return `${i + 1}. ${it.titleRu}${meta ? " — " + meta : ""}`;
+    });
+    downloadFile("recommendations.txt",
+      "Мои рекомендации Anime Archive\n==============================\n" +
+      `Всего: ${lines.length}\n\n` + lines.join("\n"),
+      "text/plain;charset=utf-8");
+    toast("recommendations.txt сохранён");
+  };
+
+  $("#exportRecJson").onclick = () => {
+    if (!customItems.length) return;
+    const data = customItems.map(it => ({
+      id: it.id, titleRu: it.titleRu, year: it.year,
+      country: it.country, genres: it.genres, poster: it.poster || ""
+    }));
+    downloadFile("recommendations.json", JSON.stringify(data, null, 2), "application/json;charset=utf-8");
+    toast("recommendations.json сохранён");
+  };
+
+  /* =============================================================
+     23. ИМПОРТ РЕКОМЕНДАЦИЙ
+     ============================================================= */
+  $("#importRecJson").onclick = () => $("#importRecFile").click();
+
+  $("#importRecFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error("Ожидался массив объектов");
+
+      const valid = parsed.filter(x => x && typeof x.titleRu === "string" && x.titleRu.trim());
+      if (!valid.length) throw new Error("В файле нет записей с полем titleRu");
+
+      let added = 0, skippedDup = 0;
+
+      for (const rec of valid) {
+        const title = rec.titleRu.trim();
+        if (state.items.some(it => it.titleRu.toLowerCase() === title.toLowerCase())) {
+          skippedDup++;
+          continue;
+        }
+
+        let yearVal = null;
+        if (typeof rec.year === "number") yearVal = String(rec.year);
+        else if (typeof rec.year === "string" && /\d{4}/.test(rec.year)) yearVal = rec.year.trim();
+
+        let genresVal = [];
+        if (Array.isArray(rec.genres)) genresVal = rec.genres.filter(g => typeof g === "string" && g.trim()).map(g => g.trim());
+        else if (typeof rec.genres === "string") genresVal = rec.genres.split(",").map(g => g.trim()).filter(Boolean);
+
+        const countryVal = (typeof rec.country === "string" && rec.country.trim()) ? rec.country.trim() : null;
+        const posterVal = (typeof rec.poster === "string") ? rec.poster : "";
+
+        const item = {
+          id: nextCustomId(),
+          titleRu: title,
+          year: yearVal,
+          country: countryVal,
+          genres: genresVal,
+          poster: posterVal,
+          custom: true
+        };
+        customItems.push(item);
+        added++;
+      }
+
+      if (!added) {
+        const why = [];
+        if (skippedDup) why.push(`${skippedDup} уже есть`);
+        throw new Error(`не добавлено ни одной записи (${why.join(", ") || "нет подходящих"})`);
+      }
+
+      saveCustom();
+      state.items = [...state.items.filter(x => !isCustom(x)), ...customItems];
+
+      buildDecades(); buildAlphabet(); buildAlphabetSelect();
+      syncDecadeUI(); syncLetterUI(); syncAlphabetSelect();
+      $("#total").textContent = state.items.length;
+      updateExportButtons();
+      render();
+
+      const parts = [`Импорт рекомендаций: добавлено ${added}`];
+      if (skippedDup) parts.push(`пропущено ${skippedDup} дубликатов`);
+      toast(parts.join(", "), "ok", 4000);
+    } catch (err) {
+      console.error(err);
+      toast("Не удалось импортировать рекомендации: " + err.message, "err", 5000);
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  /* =============================================================
+     24. ПОИСК И СИНХРОНИЗАЦИЯ
+     ============================================================= */
+  $("#search").addEventListener("input", (e) => {
+    state.q = e.target.value;
+    persistFilters(); render();
+  });
+  function syncAllControls() {
+    syncDecadeUI(); syncLetterUI(); syncAlphabetSelect(); syncSortUI(); syncModeUI();
+    $("#search").value = state.q;
+  }
+
+  /* =============================================================
+     25. СТАРТ
+     ============================================================= */
+  init().catch(err => {
+    document.querySelector(".app").innerHTML =
+      `<div class="empty"><b>не удалось загрузить каталог</b>${err.message}<br>Проверьте, что Flask запущен и data.json на месте.</div>`;
+  });
+</script>
+{% endblock %}

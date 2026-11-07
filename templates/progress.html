@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Anime Archive — Прогресс{% endblock %}
+
+{% block content %}
+<main class="progress-page">
+  <h1>Прогресс</h1>
+  <p class="tagline">Сводка по каталогу и личным данным.</p>
+
+  <section class="progress-cards">
+    <div class="progress-card">
+      <div class="k">Всего в каталоге</div>
+      <div class="v">{{ total }}</div>
+    </div>
+    <div class="progress-card">
+      <div class="k">В виш-листе</div>
+      <div class="v" id="wishCount">—</div>
+    </div>
+    <div class="progress-card">
+      <div class="k">Заметок</div>
+      <div class="v" id="noteCount">—</div>
+    </div>
+    <div class="progress-card">
+      <div class="k">Моих рекомендаций</div>
+      <div class="v" id="customCount">—</div>
+    </div>
+  </section>
+
+  <section class="progress-section">
+    <h2>Распределение по десятилетиям</h2>
+    <ul class="decade-list">
+      {% for decade, count in by_decade.items() %}
+        <li>
+          <span class="decade-label">{{ decade }}‑е</span>
+          <span class="decade-count">{{ count }}</span>
+          <div class="decade-bar" style="width: {{ (count / total * 100) | round(1) }}%"></div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Личные данные хранятся в localStorage
+  const wish = JSON.parse(localStorage.getItem("animeArchive.wishlist.v2") || "[]");
+  const notes = JSON.parse(localStorage.getItem("animeArchive.notes.v1") || "{}");
+  const custom = JSON.parse(localStorage.getItem("animeArchive.custom.v1") || "[]");
+
+  document.getElementById("wishCount").textContent = wish.length;
+  document.getElementById("noteCount").textContent = Object.keys(notes).length;
+  document.getElementById("customCount").textContent = custom.length;
+</script>
+{% endblock %}

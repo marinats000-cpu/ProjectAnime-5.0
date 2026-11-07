@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Anime Archive — Главная{% endblock %}
+
+{% block content %}
+<main class="landing">
+  <h1>Anime Archive</h1>
+  <p class="tagline">Мой личный архив просмотренных тайтлов.</p>
+
+  <div class="welcome">
+    <div class="welcome-head">
+      <div class="welcome-title">
+        Привет. Это мой архив просмотренных тайтлов. <span class="accent">Добро пожаловать!</span>
+      </div>
+    </div>
+    <div class="welcome-body">
+      Мини-инструкция для тебя:
+      <ol>
+        <li>Ты можешь добавить в свой виш-лист тайтлы, которые хочешь посмотреть/пересмотреть.</li>
+        <li>Ты можешь оставить заметки к нужному тайтлу.</li>
+        <li>Ты можешь добавить рекомендуемое аниме, которое тебе понравилось, а в списке его нет.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="landing-actions">
+    <a href="{{ url_for('app_page') }}" class="btn-primary">Открыть архив →</a>
+    <a href="{{ url_for('progress') }}" class="btn-secondary">Посмотреть прогресс</a>
+  </div>
+</main>
+{% endblock %}
